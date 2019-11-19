@@ -72,7 +72,7 @@ export async function onMessage(message: Message, prefix: string) {
 	if (!message.guild) return;
 
 	if (content.startsWith('voicechannel')) {
-		if (message.author.id === owner || !message.member.hasPermission('MANAGE_CHANNELS')) {
+		if (message.author.id === owner || message.member.hasPermission('MANAGE_CHANNELS')) {
 			message.reply('Sorry but you need `MANAGE_CHANNELS` permission to use that commend');
 			return;
 		}
@@ -125,7 +125,7 @@ export async function onMessage(message: Message, prefix: string) {
 
 	}
 	if (content.startsWith('removevoicechannel')) {
-		if (message.author.id === owner || !message.member.hasPermission('MANAGE_CHANNELS')) {
+		if (message.author.id === owner || message.member.hasPermission('MANAGE_CHANNELS')) {
 			message.reply('Sorry but you need `MANAGE_CHANNELS` permission to use that commend');
 			return;
 		}
