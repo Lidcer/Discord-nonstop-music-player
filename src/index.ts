@@ -14,7 +14,7 @@ let prefix = config.PREFIX || process.env.PREFIX;
 if (!discordToken) throw new Error('Config file is not setup properly');
 if (prefix) prefix = prefix.toLowerCase();
 if (!prefix && prefix.length > 10) throw new Error('Prefix is not valid');
-
+let debug = config.DEBUG || !!process.env.DEBUG;
 
 export let tracks: string[];
 export let settings: Settings;
@@ -49,6 +49,13 @@ client.on('guildCreate', guild => {
 		}).catch(() => {/* do nothing */ })
 	}
 })
+
+
+client.on('debug', data => {
+	if (debug) console.log(data);
+})
+
+client.on('error', console.error)
 
 client.on('guildDelete', guild => {
 	if (settings[guild.id]) {

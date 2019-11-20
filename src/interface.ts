@@ -3,6 +3,7 @@ export interface ConfigFile {
 	YOUTUBE_API_KEY: string;
 	OWNER: string;
 	PREFIX: string;
+	DEBUG: boolean;
 }
 
 export interface Settings {

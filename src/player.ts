@@ -27,8 +27,10 @@ export async function onStartup(client: Client) {
 		const guildIDs = guilds.map(g => g.id);
 
 		if (!guildIDs.includes(guildID)) {
-			delete settings[guildID];
-			console.log(`Guild ${guildID} has been removed from settings because bot is no longer in this guild`);
+			if (settings[guildID]) {
+				delete settings[guildID];
+				console.log(`Guild ${guildID} has been removed from settings because bot is no longer in this guild`);
+			}
 		}
 	}
 	await leaveAllVoiceChannels(client);
@@ -50,15 +52,16 @@ function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promi
 			const voiceChannelId = settings[guild.id];
 			const voiceChannel = guild.channels.find(c => c.id === voiceChannelId) as VoiceChannel;
 			if (!voiceChannel) {
+				if (settings[guild.id])
+					console.log(`Guild ${guild.id} has been removed from settings because voice channel doesn't exist`);
 				delete settings[guild.id];
-				console.log(`Guild ${guild.id} has been removed from settings because voice channel doesn't exist`);
 			} else {
 				await voiceChannel.join()
 					.catch(err => {
 						const owner = guild.owner;
 						if (owner) {
 							owner.createDM().then(channel => {
-								channel.send(`I am having problems in guild ${guild.name}. Your configuration was restored. Error ${err}`)
+								channel.send(`I am having problems in guild ${guild.name}. Your configuration was removed. Error ${err}`)
 									.catch(() => {/* Do nothing */ })
 							});
 						}
@@ -105,13 +108,9 @@ function shuffleTracks() {
 
 
 async function play(client: Client, index = 0) {
-	if (index > 10) throw new Error('Something went horrible wrong')
-	await joinVoiceChannels(client)
-
-
-
 	ytdl(tracks[indexPlaying], streamPatch)
-		.then(stream => {
+		.then(async stream => {
+			await joinVoiceChannels(client)
 			let dispatcher: StreamDispatcher;
 			streamDispatcher = undefined;
 			if (client.voiceConnections.map(m => m).length === 0) {
@@ -134,14 +133,14 @@ async function play(client: Client, index = 0) {
 				}
 			}
 			dispatcher.on('end', () => {
-				const WAIT = 1000 * 5;
+				const WAIT = 1000 * 2; // waits 2 seconds
 				setTimeout(() => {
 					indexPlaying++;
 					if (tracks.length - 1 < indexPlaying) {
 						shuffleTracks();
 						indexPlaying = 0;
 					}
-					play(client, ++index);
+					play(client);
 				}, WAIT);
 			});
 			dispatcher.on('start', () => {
@@ -154,15 +153,36 @@ async function play(client: Client, index = 0) {
 				throw err;
 			});
 		})
-		.catch(x => {
+		.catch(async x => {
+			const WAIT = 1000 * 5; // 5 seconds
+			const WAIT_ONE_MINUTE = 1000 * 60; // 1 minute
 			indexPlaying++;
 			if (tracks.length - 1 < indexPlaying) {
 				shuffleTracks();
 				indexPlaying = 0;
 			}
-			if (tracks.length >= indexPlaying) indexPlaying = 0;
-			if (tracks.length === 0) throw new Error('No valid tracks to play!');
-			play(client);
+
+			if (index > 10) {
+				console.error('SOMETHING IS VERY WRONG', x)
+				client.user.setPresence({
+					game: {
+						name: `Technical issues. Waiting for things to get resolved by its own.`,
+						type: 'PLAYING',
+					},
+				});
+				await leaveAllVoiceChannels(client);
+				setTimeout(() => {
+					play(client, ++index);
+
+				}, WAIT_ONE_MINUTE);
+
+			}
+
+			// Waits for 5 seconds then tries again
+			setTimeout(() => {
+				play(client, ++index);
+
+			}, WAIT);
 		});
 }
 

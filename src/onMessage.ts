@@ -1,9 +1,7 @@
-import { Message, Guild } from 'discord.js';
+import { Message, } from 'discord.js';
 import { settings, owner, tracks, destroy, invite } from '.';
-import { writeSettings, loadSettingsConfig, writeTracks } from './fileWriteReader';
-import { Youtube } from './Youtube';
+import { writeSettings, writeTracks } from './fileWriteReader';
 import { startMusicPlayer, infoSong, nextSong, replaySong, previousSong } from './player';
-//import { infoSong, nextSong, previousSong, replaySong } from './_player';
 const youtubeRegExp = new RegExp(/http(?:s?):\/\/(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?‌​[\w\?‌​=]*)?/g);
 
 
