@@ -95,7 +95,7 @@ loadTracks()
 		if (t.length === 0) throw new Error('No tracks found!');
 		tracks = t;
 		settings = await loadSettingsConfig().catch(err => { throw new Error(err) });
-		client.login(discordToken).catch(error => { throw new Error(error); });
+		login();
 	})
 	.catch(error => {
 		throw error;
@@ -104,3 +104,16 @@ loadTracks()
 process.on('uncaughtException', () => {
 	process.exit(1);
 });
+
+function login() {
+	client.login(discordToken).catch(error => {
+		if (error.toString().includes('EAI_AGAIN')) {
+			setTimeout(() => {
+				console.log('Unable to connect trying again in 10 seconds')
+				login();
+			}, 10000);
+		} else {
+			process.exit(0);
+		}
+	});
+}
