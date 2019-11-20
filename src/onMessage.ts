@@ -12,7 +12,7 @@ export async function onMessage(message: Message, prefix: string) {
 	if (message.author.id === owner) {
 
 		if (content.startsWith('playlistadd')) {
-			const links = content.match(youtubeRegExp);
+			const links = message.content.match(youtubeRegExp);
 			if (links) {
 				if (!tracks.includes(links[0])) {
 					tracks.push(links[0]);
@@ -28,20 +28,16 @@ export async function onMessage(message: Message, prefix: string) {
 			return;
 		}
 		if (content.startsWith('playlistremove')) {
-			const links = content.match(youtubeRegExp);
+			const links = message.content.match(youtubeRegExp);
 			if (links) {
-				if (tracks.includes(links[0])) {
-					const index = tracks.indexOf(links[0]);
-					if (index === -1) {
-						message.channel.send(`This track is not on playlist`);
-						return;
-					}
-					tracks.splice(index, 1)
-					await writeTracks(tracks);
-					message.channel.send(`Track removed from playlist. Total Tracks ${tracks.length}`);
-
+				const index = tracks.indexOf(links[0]);
+				if (index === -1) {
+					message.channel.send(`This track is not on playlist`);
+					return;
 				}
-
+				tracks.splice(index, 1)
+				await writeTracks(tracks);
+				message.channel.send(`Track removed from playlist. Total Tracks ${tracks.length}`);
 			} else {
 				message.channel.send('Please specify url')
 			}
@@ -65,7 +61,6 @@ export async function onMessage(message: Message, prefix: string) {
 			replaySong(message);
 			return;
 		}
-
 	}
 	if (!message.guild) return;
 

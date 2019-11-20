@@ -38,7 +38,7 @@ client.on('guildCreate', guild => {
 	if (channel) {
 		channel.send(`Sup. I'm bot my name is ${client.user.username}. And my purpose is to play music 24/7. At least that what my contract is saying.`).then(() => {
 			setTimeout(() => {
-				channel.send(`Oh yeah I almost forgot to tell ya. You have to set me up. Join voice channel if you are admin or have manage channel permission and type \`${prefix}voicechannel\`. And I will play music yall`)
+				channel.send(`Oh yeah I almost forgot to tell ya. You have to set me up. Join voice channel if you are admin or have manage channel permission and type \`${prefix}voicechannel\`. And I will play music for yall`)
 					.then(e => {
 						setTimeout(() => {
 							channel.send(`And that's not all you can use \`${prefix}np\` to check current song. Or if you are still confused you can also use \`${prefix}help\``)
