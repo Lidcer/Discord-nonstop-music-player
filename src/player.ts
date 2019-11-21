@@ -54,8 +54,7 @@ function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promi
 			} else {
 				await voiceChannel.join()
 					.catch(err => {
-						delete settings[guild.id];
-						console.log(`Problem while trying to join the channel. Error`, err);
+						console.warn(`Problem while trying to join the channel.`, err);
 					});
 			}
 		}
@@ -118,7 +117,7 @@ async function play(client: Client) {
 						.then(stream => {
 							voiceConnection[1].playOpusStream(stream)
 						}).catch(() => {
-							console.error('this should not happen');
+							console.error('Cannot play stream in one of the guild');
 						})
 				}
 			}
@@ -144,6 +143,7 @@ async function play(client: Client) {
 			});
 		})
 		.catch(async x => {
+			console.error(`Unable to play ${url}`)
 			throw new Error(x);
 		});
 
@@ -329,6 +329,7 @@ export function replaySong(message: Message) {
 
 export function executeForcePlayUrl(message: Message, url: string) {
 	if (!streamDispatcher) return;
+	forcePlayUrl = url;
 	streamDispatcher.end();
 	message.channel.send(`Initiating force replay.`)
 		.catch(err => {

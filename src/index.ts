@@ -26,7 +26,10 @@ if (!Number.isInteger(config.LOG_LEVEL)) {
 export let tracks: string[];
 export let settings: Settings;
 
-const client = new Client();
+const client = new Client({
+	messageCacheMaxSize: 1,
+
+});
 
 export let invite = '';
 
@@ -79,7 +82,7 @@ client.on('message', message => {
 	onMessage(message, prefix);
 });
 
-process.on('beforeExit', () => destroy());
+//process.on('beforeExit', () => destroy());
 process.on('SIGINT', () => destroy());
 process.on('SIGTERM', () => destroy());
 //process.on('SIGKILL', () => destroy());
@@ -91,6 +94,9 @@ process.on('uncaughtException', async err => {
 });
 process.on('unhandledRejection', err => {
 	client.emit('error', err);
+	setTimeout(() => {
+		process.exit();
+	}, 10000);
 });
 
 export async function destroy() {

@@ -11,4 +11,4 @@ export interface ConfigFile {
 
 export interface Settings {
 	[key: string]: string;
-} 
+}
