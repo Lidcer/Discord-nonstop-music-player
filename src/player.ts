@@ -1,5 +1,5 @@
-import * as axios from 'axios';
-import { Client, VoiceChannel, StreamDispatcher, VoiceConnection, AudioPlayer, Message, TextChannel, RichEmbed } from "discord.js";
+import axios from 'axios';
+import { Client, VoiceChannel, StreamDispatcher, Message, TextChannel, RichEmbed } from "discord.js";
 import { settings, tracks, youtubeKey } from ".";
 import { writeSettings } from "./fileWriteReader";
 import * as ytdl from 'ytdl-core-discord';
@@ -7,12 +7,11 @@ import * as jsdom from 'jsdom';
 import { Youtube, VideoData } from './Youtube';
 const { JSDOM } = jsdom;
 
+let streamDispatcher: StreamDispatcher;
 let indexPlaying = 0;
 let trackStart: Date;
 let playing = false;
-
-let streamDispatcher: StreamDispatcher;
-
+let forcePlayUrl = '';
 // this should fix song ending 10 second before end
 const streamPatch = {
 	filter: 'audioonly',
@@ -35,13 +34,10 @@ export async function onStartup(client: Client) {
 	}
 	await leaveAllVoiceChannels(client);
 	await joinVoiceChannels(client, true);
-	writeSettings(settings).catch(err => {
-		console.error(`UNABLE TO WRITE SETTINGS: UNABLE TO WRITE FILES ${err}`);
-	})
+	writeSettings(settings).catch(err => { })
 
 	startMusicPlayer(client)
 }
-
 
 function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promise<void> {
 	return new Promise(async (resolve, rejects) => {
@@ -58,13 +54,6 @@ function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promi
 			} else {
 				await voiceChannel.join()
 					.catch(err => {
-						const owner = guild.owner;
-						if (owner) {
-							owner.createDM().then(channel => {
-								channel.send(`I am having problems in guild ${guild.name}. Your configuration was removed. Error ${err}`)
-									.catch(() => {/* Do nothing */ })
-							});
-						}
 						delete settings[guild.id];
 						console.log(`Problem while trying to join the channel. Error`, err);
 					});
@@ -72,9 +61,7 @@ function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promi
 		}
 
 		if (!ignoreSettingsRewrite && oldSettings !== JSON.stringify(settings)) {
-			writeSettings(settings).catch(err => {
-				console.error(`UNABLE TO WRITE SETTINGS: UNABLE TO WRITE FILES ${err}`);
-			})
+			writeSettings(settings).catch(err => { });
 		}
 
 		resolve();
@@ -101,20 +88,23 @@ export function startMusicPlayer(client: Client) {
 	}
 }
 
-function shuffleTracks() {
+
+export function shuffleTracks() {
 	if (tracks.length <= 1) return;
 	tracks.sort(() => Math.round(Math.random()) - 0.5);
 }
 
 
-async function play(client: Client, index = 0) {
-	ytdl(tracks[indexPlaying], streamPatch)
+async function play(client: Client) {
+	const url = forcePlayUrl ? forcePlayUrl : tracks[indexPlaying];
+	forcePlayUrl = '';
+	ytdl(url, streamPatch)
 		.then(async stream => {
 			await joinVoiceChannels(client)
 			let dispatcher: StreamDispatcher;
 			streamDispatcher = undefined;
 			if (client.voiceConnections.map(m => m).length === 0) {
-				console.log('voiceConnections not found playing suspended!');
+				console.warn('voiceConnections not found playing suspended!');
 				playing = false;
 				return
 			}
@@ -154,48 +144,21 @@ async function play(client: Client, index = 0) {
 			});
 		})
 		.catch(async x => {
-			const WAIT = 1000 * 5; // 5 seconds
-			const WAIT_ONE_MINUTE = 1000 * 60; // 1 minute
-			indexPlaying++;
-			if (tracks.length - 1 < indexPlaying) {
-				shuffleTracks();
-				indexPlaying = 0;
-			}
-
-			if (index > 10) {
-				console.error('SOMETHING IS VERY WRONG', x)
-				client.user.setPresence({
-					game: {
-						name: `Technical issues. Waiting for things to get resolved by its own.`,
-						type: 'PLAYING',
-					},
-				});
-				await leaveAllVoiceChannels(client);
-				setTimeout(() => {
-					play(client, ++index);
-
-				}, WAIT_ONE_MINUTE);
-
-			}
-
-			// Waits for 5 seconds then tries again
-			setTimeout(() => {
-				play(client, ++index);
-
-			}, WAIT);
+			throw new Error(x);
 		});
+
 }
 
 
 async function updateStatus(client: Client) {
 	let title = 'Unknown';
 
-	await axios.default
+	await axios
 		.get(tracks[indexPlaying])
 		.then(d => {
 			const dom = new JSDOM(d.data);
 			const document = dom.window.document as Document;
-			console.log(document.title);
+			console.info(document.title);
 			if (document.title && typeof document.title === 'string') title = document.title;
 		})
 		.catch(err => {
@@ -215,13 +178,22 @@ export async function infoSong(message: Message) {
 	if (youtubeKey && canEmbed(message.channel as TextChannel)) {
 		await Youtube.getVideoInfo(youtubeKey, tracks[indexPlaying])
 			.then((video: VideoData) => {
-				message.channel.send(songInfoEmbed(new RichEmbed(), video)).catch(console.error);
+				message.channel.send(songInfoEmbed(new RichEmbed(), video))
+					.catch(err => {
+						console.log(err.toString())
+					});
 			})
 			.catch(error => {
 				console.error(error);
-				message.channel.send('Unable to get information').catch(console.error);
+				message.channel.send('Unable to get information')
+					.catch(err => {
+						console.log(err.toString())
+					});
 			});
-	} else message.channel.send(tracks[indexPlaying]).catch(console.error);
+	} else message.channel.send(tracks[indexPlaying])
+		.catch(err => {
+			console.log(err.toString())
+		});
 
 	message.channel.stopTyping();
 }
@@ -327,7 +299,10 @@ function getYoutubeTime(date: Date) {
 export function nextSong(message: Message) {
 	if (!streamDispatcher) return;
 	streamDispatcher.end();
-	message.channel.send(`➡️ ️Switching to next song.`).catch(console.error);
+	message.channel.send(`➡️ ️Switching to next song.`)
+		.catch(err => {
+			console.log(err.toString())
+		});
 }
 
 export function previousSong(message: Message) {
@@ -336,13 +311,27 @@ export function previousSong(message: Message) {
 	if (indexPlaying < 0) indexPlaying = 0;
 	streamDispatcher.end();
 
-	message.channel.send(`⬅️ ️Switching to previous song`).catch(console.error);
+	message.channel.send(`⬅️ ️Switching to previous song`)
+		.catch(err => {
+			console.log(err.toString())
+		});
 }
 export function replaySong(message: Message) {
 	if (!streamDispatcher) return;
 	indexPlaying--;
 	if (indexPlaying === -1) indexPlaying = tracks.length;
 	streamDispatcher.end();
-	message.channel.send(`🔄 Replaying`).catch(console.error);
+	message.channel.send(`🔄 Replaying`)
+		.catch(err => {
+			console.log(err.toString())
+		});
+}
 
+export function executeForcePlayUrl(message: Message, url: string) {
+	if (!streamDispatcher) return;
+	streamDispatcher.end();
+	message.channel.send(`Initiating force replay.`)
+		.catch(err => {
+			console.log(err.toString())
+		});
 }

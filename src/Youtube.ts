@@ -42,12 +42,12 @@ export class Youtube {
                 });
         });
     }
-    static searchOnLuck(youtubeApiKey: string, searchQuerry: string) {
+    static searchOnLuck(youtubeApiKey: string, searchQuery: string) {
         return new Promise((resolve, reject) => {
 
             const youtube = new SimpleYoutubeApi(youtubeApiKey);
 
-            youtube.searchVideos(searchQuerry, 1)
+            youtube.searchVideos(searchQuery, 1)
                 .then(video => {
                     if (video.length === 0) return reject(new Error('Nothing found'));
 
