@@ -1,18 +1,12 @@
 
 export const config: ConfigFile = require('../config.json');
-import { Client, Guild, TextChannel } from 'discord.js';
+import { Client, TextChannel } from 'discord.js';
 import { loadTracks, loadSettingsConfig, writeSettings } from './fileWriteReader';
 import { onMessage } from './onMessage';
 import { ConfigFile, Settings } from './interface';
 import { onStartup, leaveAllVoiceChannels } from './player';
-import * as winston from 'winston';
-export const log = winston.createLogger({
-	level: 'silly',
-	transports: [
-		new winston.transports.Console(),
-		new winston.transports.File({ filename: 'combined.log' })
-	]
-})
+import { overrideConsole } from './logger';
+overrideConsole();
 
 const discordToken = config.DISCORD_TOKEN;
 export const youtubeKey = config.YOUTUBE_API_KEY;
@@ -32,9 +26,9 @@ const client = new Client();
 export let invite = '';
 
 client.on('ready', async () => {
-	log.info(`Logged in as ${client.user.tag}!`)
+	console.info(`Logged in as ${client.user.tag}!`)
 	invite = await client.generateInvite(['SEND_MESSAGES', 'PRIORITY_SPEAKER', 'CONNECT', 'EMBED_LINKS']);
-	log.info(`Invite link ${invite}`);
+	console.info(`Invite link ${invite}`);
 	onStartup(client);
 });
 
@@ -59,19 +53,19 @@ client.on('guildCreate', guild => {
 })
 
 client.on('debug', data => {
-	if (debug) log.debug(data);
+	if (debug) console.debug(data);
 })
 
 client.on('error', err => {
-	if (err.stack) log.error(err.stack);
-	else log.error(err.toString());
+	if (err.stack) console.error(err.stack);
+	else console.error(err.toString());
 })
 
 client.on('guildDelete', guild => {
 	if (settings[guild.id]) {
 		delete settings[guild.id]
 		writeSettings(settings);
-		log.info(`Bot was removed from guild ${guild.id}`)
+		console.info(`Bot was removed from guild ${guild.id}`)
 	}
 });
 
@@ -85,8 +79,8 @@ process.on('SIGTERM', () => destroy());
 //process.on('SIGKILL', () => destroy());
 
 process.on('uncaughtException', async err => {
-	log.error(err.stack);
-	await sendErrorToOwner(err.stack).catch(err => { log.warn(err.toString()) });
+	console.error(err.stack);
+	await sendErrorToOwner(err.stack).catch(err => { console.warn(err.toString()) });
 	destroy();
 });
 process.on('unhandledRejection', err => {

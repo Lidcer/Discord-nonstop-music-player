@@ -1,6 +1,6 @@
 import * as axios from 'axios';
 import { Client, VoiceChannel, StreamDispatcher, Message, TextChannel, RichEmbed } from "discord.js";
-import { settings, tracks, youtubeKey, log } from ".";
+import { settings, tracks, youtubeKey } from ".";
 import { writeSettings } from "./fileWriteReader";
 import * as ytdl from 'ytdl-core-discord';
 import * as jsdom from 'jsdom';
@@ -219,19 +219,19 @@ export async function infoSong(message: Message) {
 			.then((video: VideoData) => {
 				message.channel.send(songInfoEmbed(new RichEmbed(), video))
 					.catch(err => {
-						log.log(err.toString())
+						console.log(err.toString())
 					});
 			})
 			.catch(error => {
 				console.error(error);
 				message.channel.send('Unable to get information')
 					.catch(err => {
-						log.log(err.toString())
+						console.log(err.toString())
 					});
 			});
 	} else message.channel.send(tracks[indexPlaying])
 		.catch(err => {
-			log.log(err.toString())
+			console.log(err.toString())
 		});
 
 	message.channel.stopTyping();
@@ -340,7 +340,7 @@ export function nextSong(message: Message) {
 	streamDispatcher.end();
 	message.channel.send(`➡️ ️Switching to next song.`)
 		.catch(err => {
-			log.log(err.toString())
+			console.log(err.toString())
 		});
 }
 
@@ -352,7 +352,7 @@ export function previousSong(message: Message) {
 
 	message.channel.send(`⬅️ ️Switching to previous song`)
 		.catch(err => {
-			log.log(err.toString())
+			console.log(err.toString())
 		});
 }
 export function replaySong(message: Message) {
@@ -362,7 +362,7 @@ export function replaySong(message: Message) {
 	streamDispatcher.end();
 	message.channel.send(`🔄 Replaying`)
 		.catch(err => {
-			log.log(err.toString())
+			console.log(err.toString())
 		});
 }
 
@@ -371,6 +371,6 @@ export function executeForcePlayUrl(message: Message, url: string) {
 	streamDispatcher.end();
 	message.channel.send(`Initiating force replay.`)
 		.catch(err => {
-			log.log(err.toString())
+			console.log(err.toString())
 		});
 }

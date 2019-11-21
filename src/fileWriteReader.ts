@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'fs';
 import * as path from 'path';
 import { Settings } from './interface';
 import { youtubeRegExp } from './onMessage';
-import { log, config } from '.';
+import { config } from '.';
 const songsTXT = path.join(__dirname, '../songs.txt');
 const settingsJson = path.join(__dirname, '../settings.json');
 const configJson = path.join(__dirname, '../config.json');
@@ -17,7 +17,7 @@ export function loadTracks(): Promise<string[]> {
 				return;
 			}
 			const urls = data.toString().match(youtubeRegExp)
-			log.info(`Loaded ${urls.length} tracks`);
+			console.info(`Loaded ${urls.length} tracks`);
 			resolve(urls);
 			return;
 		})
@@ -50,11 +50,11 @@ export function writeSettings(newSettings: Settings): Promise<void> {
 	return new Promise((resolve, reject) => {
 		writeFile(settingsJson, JSON.stringify(newSettings), (err) => {
 			if (err) {
-				log.error(err.stack);
+				console.error(err.stack);
 				reject(err as any);
 			}
 			else {
-				log.debug('settings has been written');
+				console.debug('settings has been written');
 				resolve()
 			};
 		});
@@ -65,11 +65,11 @@ export function writeTracks(newTracks: string[]): Promise<void> {
 	return new Promise((resolve, reject) => {
 		writeFile(songsTXT, newTracks.join('\n'), (err) => {
 			if (err) {
-				log.error(err.stack);
+				console.error(err.stack);
 				reject(err as any);
 			}
 			else {
-				log.debug('Tracks has been written');
+				console.debug('Tracks has been written');
 				resolve();
 			}
 		});
@@ -85,11 +85,11 @@ export function writeConfig(): Promise<void> {
 
 		writeFile(configJson, newConfig, (err) => {
 			if (err) {
-				log.error(err.stack);
+				console.error(err.stack);
 				reject(err as any);
 			}
 			else {
-				log.debug('Config has been written');
+				console.debug('Config has been written');
 				resolve()
 			};
 		});
