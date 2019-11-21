@@ -4,6 +4,8 @@ export interface ConfigFile {
 	OWNER: string;
 	PREFIX: string;
 	DEBUG: boolean;
+	INVITE: boolean;
+	LOG_LEVEL: boolean;
 }
 
 export interface Settings {

@@ -1,18 +1,17 @@
 import * as axios from 'axios';
-import { Client, VoiceChannel, StreamDispatcher, VoiceConnection, AudioPlayer, Message, TextChannel, RichEmbed } from "discord.js";
-import { settings, tracks, youtubeKey } from ".";
+import { Client, VoiceChannel, StreamDispatcher, Message, TextChannel, RichEmbed } from "discord.js";
+import { settings, tracks, youtubeKey, log } from ".";
 import { writeSettings } from "./fileWriteReader";
 import * as ytdl from 'ytdl-core-discord';
 import * as jsdom from 'jsdom';
 import { Youtube, VideoData } from './Youtube';
 const { JSDOM } = jsdom;
 
+let streamDispatcher: StreamDispatcher;
 let indexPlaying = 0;
 let trackStart: Date;
 let playing = false;
-
-let streamDispatcher: StreamDispatcher;
-
+let forcePlayUrl = '';
 // this should fix song ending 10 second before end
 const streamPatch = {
 	filter: 'audioonly',
@@ -101,14 +100,17 @@ export function startMusicPlayer(client: Client) {
 	}
 }
 
-function shuffleTracks() {
+
+export function shuffleTracks() {
 	if (tracks.length <= 1) return;
 	tracks.sort(() => Math.round(Math.random()) - 0.5);
 }
 
 
 async function play(client: Client, index = 0) {
-	ytdl(tracks[indexPlaying], streamPatch)
+	const url = forcePlayUrl ? forcePlayUrl : tracks[indexPlaying];
+	forcePlayUrl = '';
+	ytdl(url, streamPatch)
 		.then(async stream => {
 			await joinVoiceChannels(client)
 			let dispatcher: StreamDispatcher;
@@ -215,13 +217,22 @@ export async function infoSong(message: Message) {
 	if (youtubeKey && canEmbed(message.channel as TextChannel)) {
 		await Youtube.getVideoInfo(youtubeKey, tracks[indexPlaying])
 			.then((video: VideoData) => {
-				message.channel.send(songInfoEmbed(new RichEmbed(), video)).catch(console.error);
+				message.channel.send(songInfoEmbed(new RichEmbed(), video))
+					.catch(err => {
+						log.log(err.toString())
+					});
 			})
 			.catch(error => {
 				console.error(error);
-				message.channel.send('Unable to get information').catch(console.error);
+				message.channel.send('Unable to get information')
+					.catch(err => {
+						log.log(err.toString())
+					});
 			});
-	} else message.channel.send(tracks[indexPlaying]).catch(console.error);
+	} else message.channel.send(tracks[indexPlaying])
+		.catch(err => {
+			log.log(err.toString())
+		});
 
 	message.channel.stopTyping();
 }
@@ -327,7 +338,10 @@ function getYoutubeTime(date: Date) {
 export function nextSong(message: Message) {
 	if (!streamDispatcher) return;
 	streamDispatcher.end();
-	message.channel.send(`➡️ ️Switching to next song.`).catch(console.error);
+	message.channel.send(`➡️ ️Switching to next song.`)
+		.catch(err => {
+			log.log(err.toString())
+		});
 }
 
 export function previousSong(message: Message) {
@@ -336,13 +350,27 @@ export function previousSong(message: Message) {
 	if (indexPlaying < 0) indexPlaying = 0;
 	streamDispatcher.end();
 
-	message.channel.send(`⬅️ ️Switching to previous song`).catch(console.error);
+	message.channel.send(`⬅️ ️Switching to previous song`)
+		.catch(err => {
+			log.log(err.toString())
+		});
 }
 export function replaySong(message: Message) {
 	if (!streamDispatcher) return;
 	indexPlaying--;
 	if (indexPlaying === -1) indexPlaying = tracks.length;
 	streamDispatcher.end();
-	message.channel.send(`🔄 Replaying`).catch(console.error);
+	message.channel.send(`🔄 Replaying`)
+		.catch(err => {
+			log.log(err.toString())
+		});
+}
 
+export function executeForcePlayUrl(message: Message, url: string) {
+	if (!streamDispatcher) return;
+	streamDispatcher.end();
+	message.channel.send(`Initiating force replay.`)
+		.catch(err => {
+			log.log(err.toString())
+		});
 }

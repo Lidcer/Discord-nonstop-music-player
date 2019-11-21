@@ -1,15 +1,23 @@
-// tslint:disable-next-line: no-var-requires
-const config: ConfigFile = require('../config.json');
+
+export const config: ConfigFile = require('../config.json');
 import { Client, Guild, TextChannel } from 'discord.js';
 import { loadTracks, loadSettingsConfig, writeSettings } from './fileWriteReader';
 import { onMessage } from './onMessage';
 import { ConfigFile, Settings } from './interface';
 import { onStartup, leaveAllVoiceChannels } from './player';
+import * as winston from 'winston';
+export const log = winston.createLogger({
+	level: 'silly',
+	transports: [
+		new winston.transports.Console(),
+		new winston.transports.File({ filename: 'combined.log' })
+	]
+})
 
-const discordToken = config.DISCORD_TOKEN || process.env.DISCORD_TOKEN;
-export const youtubeKey = config.YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY;
-export const owner = config.OWNER || process.env.OWNER;
-let prefix = config.PREFIX || process.env.PREFIX;
+const discordToken = config.DISCORD_TOKEN;
+export const youtubeKey = config.YOUTUBE_API_KEY;
+export const owner = config.OWNER;
+let prefix = config.PREFIX;
 
 if (!discordToken) throw new Error('Config file is not setup properly');
 if (prefix) prefix = prefix.toLowerCase();
@@ -24,9 +32,9 @@ const client = new Client();
 export let invite = '';
 
 client.on('ready', async () => {
-	console.info(`Logged in as ${client.user.tag}!`);
+	log.info(`Logged in as ${client.user.tag}!`)
 	invite = await client.generateInvite(['SEND_MESSAGES', 'PRIORITY_SPEAKER', 'CONNECT', 'EMBED_LINKS']);
-	console.info(`Invite link ${invite}`);
+	log.info(`Invite link ${invite}`);
 	onStartup(client);
 });
 
@@ -50,18 +58,20 @@ client.on('guildCreate', guild => {
 	}
 })
 
-
 client.on('debug', data => {
-	if (debug) console.log(data);
+	if (debug) log.debug(data);
 })
 
-client.on('error', console.error)
+client.on('error', err => {
+	if (err.stack) log.error(err.stack);
+	else log.error(err.toString());
+})
 
 client.on('guildDelete', guild => {
 	if (settings[guild.id]) {
 		delete settings[guild.id]
 		writeSettings(settings);
-		console.log(`Bot was removed from guild ${guild.id}`)
+		log.info(`Bot was removed from guild ${guild.id}`)
 	}
 });
 
@@ -72,17 +82,16 @@ client.on('message', message => {
 process.on('beforeExit', () => destroy());
 process.on('SIGINT', () => destroy());
 process.on('SIGTERM', () => destroy());
-// process.on('SIGKILL', () => destroy());
+//process.on('SIGKILL', () => destroy());
 
-process.on('uncaughtException', err => {
-	console.error(err);
+process.on('uncaughtException', async err => {
+	log.error(err.stack);
+	await sendErrorToOwner(err.stack).catch(err => { log.warn(err.toString()) });
 	destroy();
 });
 process.on('unhandledRejection', err => {
 	client.emit('error', err);
 });
-
-
 
 export async function destroy() {
 	await client.destroy();
@@ -94,26 +103,35 @@ loadTracks()
 	.then(async t => {
 		if (t.length === 0) throw new Error('No tracks found!');
 		tracks = t;
-		settings = await loadSettingsConfig().catch(err => { throw new Error(err) });
+		settings = await loadSettingsConfig()
+			.catch(err => { throw new Error(err) });
 		login();
 	})
 	.catch(error => {
 		throw error;
 	});
 
-process.on('uncaughtException', () => {
-	process.exit(1);
-});
+function sendErrorToOwner(message: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const user = client.users.find(u => u.id === owner)
+		if (!user) {
+			reject(new Error('User not found'));
+			return
+		};
+		user.createDM()
+			.then(channel => {
+				channel.send(message)
+					.then(() => { resolve() })
+					.catch(err => reject(err))
+			})
+			.catch(err => {
+				reject(err);
+			})
+	});
+}
 
 function login() {
 	client.login(discordToken).catch(error => {
-		if (error.toString().includes('EAI_AGAIN')) {
-			setTimeout(() => {
-				console.log('Unable to connect trying again in 10 seconds')
-				login();
-			}, 10000);
-		} else {
-			process.exit(0);
-		}
+		throw error
 	});
 }

@@ -1,21 +1,25 @@
 import { readFile, writeFile } from 'fs';
 import * as path from 'path';
-import { rejects } from 'assert';
-import { resolve } from 'dns';
 import { Settings } from './interface';
+import { youtubeRegExp } from './onMessage';
+import { log, config } from '.';
 const songsTXT = path.join(__dirname, '../songs.txt');
 const settingsJson = path.join(__dirname, '../settings.json');
-const youtubeTester = new RegExp(/http(?:s?):\/\/(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?‌​[\w\?‌​=]*)?/g);
+const configJson = path.join(__dirname, '../config.json');
 
+
+//const beautify = require('beautify');
 export function loadTracks(): Promise<string[]> {
 	return new Promise((resolve, reject) => {
-		readFile(songsTXT, (err, data) => {
-			if (err) return reject(err)
-
-			const urls = data.toString().match(youtubeTester)
-
-			console.info(`Loaded ${urls.length} tracks`)
-			return resolve(urls)
+		readFile(songsTXT, 'utf8', (err, data) => {
+			if (err) {
+				reject(err);
+				return;
+			}
+			const urls = data.toString().match(youtubeRegExp)
+			log.info(`Loaded ${urls.length} tracks`);
+			resolve(urls);
+			return;
 		})
 	})
 }
@@ -29,7 +33,6 @@ export function loadSettingsConfig(): Promise<Settings> {
 					else resolve({});
 				})
 			}
-
 			try {
 				const settings = JSON.parse(data);
 				return resolve(settings);
@@ -46,8 +49,14 @@ export function loadSettingsConfig(): Promise<Settings> {
 export function writeSettings(newSettings: Settings): Promise<void> {
 	return new Promise((resolve, reject) => {
 		writeFile(settingsJson, JSON.stringify(newSettings), (err) => {
-			if (err) reject(err as any);
-			else resolve();
+			if (err) {
+				log.error(err.stack);
+				reject(err as any);
+			}
+			else {
+				log.debug('settings has been written');
+				resolve()
+			};
 		});
 	});
 }
@@ -55,12 +64,36 @@ export function writeSettings(newSettings: Settings): Promise<void> {
 export function writeTracks(newTracks: string[]): Promise<void> {
 	return new Promise((resolve, reject) => {
 		writeFile(songsTXT, newTracks.join('\n'), (err) => {
-			if (err) reject(err as any);
-			else resolve();
+			if (err) {
+				log.error(err.stack);
+				reject(err as any);
+			}
+			else {
+				log.debug('Tracks has been written');
+				resolve();
+			}
 		});
 	});
 }
 
+export function writeConfig(): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const newConfig = JSON.stringify(config)
+			.replace(/{/g, '{\n')
+			.replace(/,/g, '\n	')
+			.replace(/}/g, '}\n')
 
+		writeFile(configJson, newConfig, (err) => {
+			if (err) {
+				log.error(err.stack);
+				reject(err as any);
+			}
+			else {
+				log.debug('Config has been written');
+				resolve()
+			};
+		});
+	});
+}
 
 
