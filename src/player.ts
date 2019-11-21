@@ -12,11 +12,12 @@ let indexPlaying = 0;
 let trackStart: Date;
 let playing = false;
 let forcePlayUrl = '';
-// this should fix song ending 10 second before end
-const streamPatch = {
-	filter: 'audioonly',
-	highWaterMark: 1 << 25
-};
+// // this should fix song ending 10 second before end
+const streamPatch = {};
+// const streamPatch = {
+// 	filter: 'audioonly',
+// 	highWaterMark: 1 << 25
+// };
 export async function onStartup(client: Client) {
 	const guilds = client.guilds.map(g => g);
 
@@ -135,7 +136,7 @@ async function play(client: Client) {
 			dispatcher.on('start', () => {
 				console.info(`Track ${indexPlaying + 1} / ${tracks.length} ${tracks[indexPlaying]}`);
 				trackStart = new Date(Date.now());
-				updateStatus(client);
+				updateStatus(client, url);
 			});
 
 			dispatcher.on('error', err => {
@@ -150,11 +151,11 @@ async function play(client: Client) {
 }
 
 
-async function updateStatus(client: Client) {
+async function updateStatus(client: Client, url: string) {
 	let title = 'Unknown';
 
 	await axios
-		.get(tracks[indexPlaying])
+		.get(url)
 		.then(d => {
 			const dom = new JSDOM(d.data);
 			const document = dom.window.document as Document;
@@ -328,11 +329,14 @@ export function replaySong(message: Message) {
 }
 
 export function executeForcePlayUrl(message: Message, url: string) {
-	if (!streamDispatcher) return;
 	forcePlayUrl = url;
-	streamDispatcher.end();
 	message.channel.send(`Initiating force replay.`)
 		.catch(err => {
-			console.log(err.toString())
+			console.error(err.toString())
 		});
+
+	setTimeout(() => {
+		if (!streamDispatcher) return;
+		streamDispatcher.end();
+	}, 10);
 }
