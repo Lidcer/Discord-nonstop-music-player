@@ -3,7 +3,7 @@ import * as path from 'path';
 import { Settings } from './interface';
 import { youtubeRegExp } from './onMessage';
 import { config } from '.';
-const songsTXT = path.join(__dirname, '../songs.txt');
+export const songsTXT = path.join(__dirname, '../songs.txt');
 const settingsJson = path.join(__dirname, '../settings.json');
 const configJson = path.join(__dirname, '../config.json');
 
@@ -17,6 +17,11 @@ export function loadTracks(): Promise<string[]> {
 				return;
 			}
 			const urls = data.toString().match(youtubeRegExp)
+				.map(r => r)
+				.filter((line, index, array) => {
+					return array.indexOf(line) == index;
+				})
+
 			console.info(`Loaded ${urls.length} tracks`);
 			resolve(urls);
 			return;
@@ -79,9 +84,10 @@ export function writeTracks(newTracks: string[]): Promise<void> {
 export function writeConfig(): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const newConfig = JSON.stringify(config)
-			.replace(/{/g, '{\n')
-			.replace(/,/g, '\n	')
-			.replace(/}/g, '}\n')
+			.replace(/{/g, '{\n	')
+			.replace(/,/g, ',\n	')
+			.replace(/}/g, '\n}')
+			.replace(/":/g, '": ')
 
 		writeFile(configJson, newConfig, (err) => {
 			if (err) {

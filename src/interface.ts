@@ -5,7 +5,8 @@ export interface ConfigFile {
 	PREFIX: string;
 	DEBUG: boolean;
 	INVITE: boolean;
-	LOG_LEVEL: boolean;
+	MESSAGE_ON_GUILD_JOIN: boolean;
+	LOG_LEVEL: number;
 }
 
 export interface Settings {

@@ -1,7 +1,9 @@
-import { Message, GuildChannel, } from 'discord.js';
+import { Message, GuildChannel, MessageAttachment, Attachment, } from 'discord.js';
 import { settings, owner, tracks, destroy, invite, config } from '.';
-import { writeSettings, writeTracks, writeConfig } from './fileWriteReader';
+import { writeSettings, writeTracks, writeConfig, songsTXT } from './fileWriteReader';
 import { startMusicPlayer, infoSong, nextSong, replaySong, previousSong, executeForcePlayUrl } from './player';
+import axios from 'axios';
+import { readFile } from 'fs';
 export const youtubeRegExp = new RegExp(/http(?:s?):\/\/(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?‌​[\w\?‌​=]*)?/g);
 
 const cooldown = new Set();
@@ -9,7 +11,8 @@ const nowPlaying = new Set();
 const COOLDOWN_TIME = 5000;
 const NOW_WAIT = 1000 * 30;
 
-const commands = {
+//all stings in this object needs to be lowercase
+export const commands = {
 	owner: {
 		playlistAdd: 'playlist add',
 		playlistRemove: 'playlist remove',
@@ -20,11 +23,13 @@ const commands = {
 		forcePlay: 'force play',
 		disableInvite: 'disable invite',
 		setPrefix: 'set prefix',
-		uploadSongsTxt: 'playlist upload'
+		uploadSongsTxt: 'playlist upload',
+		downloadSongsTxt: 'playlist download',
+		logLevel: 'logger'
 	},
 	admins: {
-		addVoiceChannel: 'voiceadd',
-		removeVoiceChannel: 'voiceremove',
+		addVoiceChannel: 'set channel',
+		removeVoiceChannel: 'remove channel',
 	},
 	users: {
 		help: 'help',
@@ -83,7 +88,9 @@ export async function onMessage(message: Message, prefix: string) {
 			commandsInfo.push(`${prefix}${commands.owner.next} - next song`);
 			commandsInfo.push(`${prefix}${commands.owner.previous} - previous song`);
 			commandsInfo.push(`${prefix}${commands.owner.replay} - replay song`);
+			commandsInfo.push(`${prefix}${commands.owner.logLevel} <0-5> - log level`);
 			commandsInfo.push(`${prefix}${commands.owner.uploadSongsTxt} - replaces songs.txt (requires songs.txt attachment)`);
+			commandsInfo.push(`${prefix}${commands.owner.downloadSongsTxt} - sends you songs.txt file`);
 		}
 		message.channel.send(`${startEnd}\n${commandsInfo.join('\n')}${startEnd}`).catch(() => {/* ignored */ });
 	}
@@ -183,7 +190,51 @@ export async function onMessage(message: Message, prefix: string) {
 			replaySong(message);
 			return;
 		}
+		if (content.startsWith(commands.owner.downloadSongsTxt)) {
+			readFile(songsTXT, (err, data) => {
+				if (err) {
+					message.channel.send(`Cannot read the file`).catch(() => { });
+					return;
+				}
+				const attachment = new Attachment(data, 'songs.txt');
+				message.channel.send(`That's what I have.`, attachment);
+			});
+		}
 
+		if (content.startsWith(commands.owner.logLevel)) {
+			const level = content.slice(commands.owner.logLevel.length).trim();
+			const number = parseInt(level);
+			if (isNaN(number)) {
+				message.channel.send(`Logger lever need to be number from 0 to 5`);
+				return
+			} else {
+				console.info(`Logger Level has been set to ${number}`)
+				config.LOG_LEVEL = number
+
+				await writeConfig();
+				message.channel.send(`Logger level has been set to ${number}`);
+			}
+
+			return;
+		}
+		if (content.startsWith(commands.owner.uploadSongsTxt)) {
+			const attachments = message.attachments.map(a => a);
+			if (attachments.length === 0) {
+				message.channel.send(`You have to include \`songs.txt\` for that operation`)
+			} else {
+				for (const attachment of attachments) {
+					console.log(attachment.filename)
+					if (attachment.filename === 'songs.txt') {
+
+						updateFile(message, attachment.url);
+						return;
+					}
+				}
+				message.channel.send('Wrong file uploaded! Ignoring...');
+				return
+			}
+
+		}
 	}
 	if (!message.guild) return;
 
@@ -256,4 +307,30 @@ export async function onMessage(message: Message, prefix: string) {
 	if (config.INVITE && content.startsWith('invite')) {
 		message.channel.send(`Sure... here is my invite code for ya **<${invite}>**`).catch(() => { });
 	}
+}
+
+
+async function updateFile(message: Message, url: string) {
+	await axios
+		.get(url)
+		.then(async ({ data }) => {
+
+			const lines = data.match(youtubeRegExp) as RegExpMatchArray;
+			if (!lines || lines.length === 0) {
+				message.channel.send(`Unable to find songs. operation canceled`);
+				return
+			}
+
+			const tracks = lines.map(r => r).filter((line, index, array) => {
+				return array.indexOf(line) == index;
+			})
+
+			await writeTracks(tracks)
+
+			message.channel.send(`Playlist updated. Total tracks ${tracks.length}`)
+		})
+		.catch(err => {
+			console.error(err);
+			message.channel.send(`Something went wrongs: ${err}`)
+		});
 }

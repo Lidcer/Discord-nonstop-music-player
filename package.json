@@ -26,6 +26,7 @@
     "libsodium-wrappers": "^0.7.6",
     "logger": "0.0.1",
     "m3u8-parser": "^4.4.0",
+    "moment": "^2.24.0",
     "node-opus": "^0.3.2",
     "opusscript": "0.0.7",
     "simple-youtube-api": "5.2.1",

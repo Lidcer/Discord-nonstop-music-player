@@ -1,4 +1,4 @@
-import * as axios from 'axios';
+import axios from 'axios';
 import { Client, VoiceChannel, StreamDispatcher, Message, TextChannel, RichEmbed } from "discord.js";
 import { settings, tracks, youtubeKey } from ".";
 import { writeSettings } from "./fileWriteReader";
@@ -34,13 +34,10 @@ export async function onStartup(client: Client) {
 	}
 	await leaveAllVoiceChannels(client);
 	await joinVoiceChannels(client, true);
-	writeSettings(settings).catch(err => {
-		console.error(`UNABLE TO WRITE SETTINGS: UNABLE TO WRITE FILES ${err}`);
-	})
+	writeSettings(settings).catch(err => { })
 
 	startMusicPlayer(client)
 }
-
 
 function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promise<void> {
 	return new Promise(async (resolve, rejects) => {
@@ -57,13 +54,6 @@ function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promi
 			} else {
 				await voiceChannel.join()
 					.catch(err => {
-						const owner = guild.owner;
-						if (owner) {
-							owner.createDM().then(channel => {
-								channel.send(`I am having problems in guild ${guild.name}. Your configuration was removed. Error ${err}`)
-									.catch(() => {/* Do nothing */ })
-							});
-						}
 						delete settings[guild.id];
 						console.log(`Problem while trying to join the channel. Error`, err);
 					});
@@ -71,9 +61,7 @@ function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promi
 		}
 
 		if (!ignoreSettingsRewrite && oldSettings !== JSON.stringify(settings)) {
-			writeSettings(settings).catch(err => {
-				console.error(`UNABLE TO WRITE SETTINGS: UNABLE TO WRITE FILES ${err}`);
-			})
+			writeSettings(settings).catch(err => { });
 		}
 
 		resolve();
@@ -107,7 +95,7 @@ export function shuffleTracks() {
 }
 
 
-async function play(client: Client, index = 0) {
+async function play(client: Client) {
 	const url = forcePlayUrl ? forcePlayUrl : tracks[indexPlaying];
 	forcePlayUrl = '';
 	ytdl(url, streamPatch)
@@ -116,7 +104,7 @@ async function play(client: Client, index = 0) {
 			let dispatcher: StreamDispatcher;
 			streamDispatcher = undefined;
 			if (client.voiceConnections.map(m => m).length === 0) {
-				console.log('voiceConnections not found playing suspended!');
+				console.warn('voiceConnections not found playing suspended!');
 				playing = false;
 				return
 			}
@@ -156,48 +144,21 @@ async function play(client: Client, index = 0) {
 			});
 		})
 		.catch(async x => {
-			const WAIT = 1000 * 5; // 5 seconds
-			const WAIT_ONE_MINUTE = 1000 * 60; // 1 minute
-			indexPlaying++;
-			if (tracks.length - 1 < indexPlaying) {
-				shuffleTracks();
-				indexPlaying = 0;
-			}
-
-			if (index > 10) {
-				console.error('SOMETHING IS VERY WRONG', x)
-				client.user.setPresence({
-					game: {
-						name: `Technical issues. Waiting for things to get resolved by its own.`,
-						type: 'PLAYING',
-					},
-				});
-				await leaveAllVoiceChannels(client);
-				setTimeout(() => {
-					play(client, ++index);
-
-				}, WAIT_ONE_MINUTE);
-
-			}
-
-			// Waits for 5 seconds then tries again
-			setTimeout(() => {
-				play(client, ++index);
-
-			}, WAIT);
+			throw new Error(x);
 		});
+
 }
 
 
 async function updateStatus(client: Client) {
 	let title = 'Unknown';
 
-	await axios.default
+	await axios
 		.get(tracks[indexPlaying])
 		.then(d => {
 			const dom = new JSDOM(d.data);
 			const document = dom.window.document as Document;
-			console.log(document.title);
+			console.info(document.title);
 			if (document.title && typeof document.title === 'string') title = document.title;
 		})
 		.catch(err => {
