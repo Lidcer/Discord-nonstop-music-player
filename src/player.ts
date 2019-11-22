@@ -1,10 +1,9 @@
-import axios from 'axios';
 import { Client, VoiceChannel, StreamDispatcher, Message, TextChannel, RichEmbed } from "discord.js";
-import { settings, tracks, youtubeKey } from ".";
+import { settings, tracks, youtubeKey, sendErrorToOwner } from ".";
 import { writeSettings } from "./fileWriteReader";
-import * as ytdl from 'ytdl-core-discord';
 import * as jsdom from 'jsdom';
 import { Youtube, VideoData } from './Youtube';
+import { ytdlCustom } from './yt-code-discord';
 const { JSDOM } = jsdom;
 
 let streamDispatcher: StreamDispatcher;
@@ -13,10 +12,10 @@ let trackStart: Date;
 let playing = false;
 let forcePlayUrl = '';
 // // this should fix song ending 10 second before end
-const streamPatch = {};
-// const streamPatch = {
+//const streamPatch = { filter: 'audioonly' };
+// const streamPatch= {
 // 	filter: 'audioonly',
-// 	highWaterMark: 1 << 25
+// 	//	highWaterMark: 1 << 25
 // };
 export async function onStartup(client: Client) {
 	const guilds = client.guilds.map(g => g);
@@ -30,6 +29,7 @@ export async function onStartup(client: Client) {
 			if (settings[guildID]) {
 				delete settings[guildID];
 				console.log(`Guild ${guildID} has been removed from settings because bot is no longer in this guild`);
+
 			}
 		}
 	}
@@ -95,80 +95,82 @@ export function shuffleTracks() {
 }
 
 
-async function play(client: Client) {
+async function play(client: Client, index = 0) {
 	const url = forcePlayUrl ? forcePlayUrl : tracks[indexPlaying];
+	const isForcePlayed = !!forcePlayUrl;
 	forcePlayUrl = '';
-	ytdl(url, streamPatch)
-		.then(async stream => {
-			await joinVoiceChannels(client)
-			let dispatcher: StreamDispatcher;
-			streamDispatcher = undefined;
-			if (client.voiceConnections.map(m => m).length === 0) {
-				console.warn('voiceConnections not found playing suspended!');
-				playing = false;
-				return
-			}
-			for (const voiceConnection of client.voiceConnections) {
-				if (!dispatcher) {
-					const voiceDispatcher = voiceConnection[1].playOpusStream(stream)
-					streamDispatcher = voiceDispatcher;
-					dispatcher = voiceDispatcher;
-				} else {
-					ytdl(tracks[indexPlaying])
-						.then(stream => {
-							voiceConnection[1].playOpusStream(stream)
-						}).catch(() => {
-							console.error('Cannot play stream in one of the guild');
-						})
-				}
-			}
-			dispatcher.on('end', () => {
-				const WAIT = 1000 * 2; // waits 2 seconds
-				setTimeout(() => {
-					indexPlaying++;
-					if (tracks.length - 1 < indexPlaying) {
-						shuffleTracks();
-						indexPlaying = 0;
-					}
-					play(client);
-				}, WAIT);
-			});
-			dispatcher.on('start', () => {
-				console.info(`Track ${indexPlaying + 1} / ${tracks.length} ${tracks[indexPlaying]}`);
-				trackStart = new Date(Date.now());
-				updateStatus(client, url);
-			});
+	try {
+		const things = await ytdlCustom(url)
+		await joinVoiceChannels(client)
+		let dispatcher: StreamDispatcher;
+		streamDispatcher = undefined;
+		if (client.voiceConnections.map(m => m).length === 0) {
+			console.warn('voiceConnections not found playing suspended!');
+			playing = false;
+			return
+		}
+		for (const voiceConnection of client.voiceConnections) {
+			if (!dispatcher) {
+				const voiceDispatcher = voiceConnection[1].playOpusStream(things.stream)
+				streamDispatcher = voiceDispatcher;
+				dispatcher = voiceDispatcher;
+			} else {
+				const anotherThing = await ytdlCustom(tracks[indexPlaying])
+				voiceConnection[1].playOpusStream(anotherThing.stream);
 
-			dispatcher.on('error', err => {
-				throw err;
-			});
-		})
-		.catch(async x => {
-			console.error(`Unable to play ${url}`)
-			throw new Error(x);
+			}
+		}
+		dispatcher.on('end', () => {
+			const WAIT = 1000 * 2; // waits 2 seconds
+			setTimeout(() => {
+				playlistIncrementor();
+				play(client);
+			}, WAIT);
+		});
+		dispatcher.on('start', () => {
+			console.info(`Track ${indexPlaying + 1} / ${tracks.length} ${tracks[indexPlaying]}`);
+			trackStart = new Date(Date.now());
+			setPresence(client, things.title);
 		});
 
+		dispatcher.on('error', err => {
+			throw err;
+		});
+	} catch (error) {
+		if (isForcePlayed) {
+			sendErrorToOwner('Force play failed!');
+		}
+
+		if (index > 10) {
+			console.warn('Unable to play tracks!');
+			setPresence(client, 'Technical issues')
+			shuffleTracks();
+			indexPlaying = 0;
+			setTimeout(() => {
+				play(client, ++index);
+			}, 60000);
+			return;
+		}
+		playlistIncrementor();
+		console.error(`Broken track ${url}`)
+		setTimeout(() => {
+			play(client, ++index)
+		}, 5000);
+	}
 }
 
+function playlistIncrementor() {
+	indexPlaying++;
+	if (tracks.length - 1 < indexPlaying) {
+		shuffleTracks();
+		indexPlaying = 0;
+	}
+}
 
-async function updateStatus(client: Client, url: string) {
-	let title = 'Unknown';
-
-	await axios
-		.get(url)
-		.then(d => {
-			const dom = new JSDOM(d.data);
-			const document = dom.window.document as Document;
-			console.info(document.title);
-			if (document.title && typeof document.title === 'string') title = document.title;
-		})
-		.catch(err => {
-			console.error(err);
-		});
-
+function setPresence(client: Client, content: string) {
 	client.user.setPresence({
 		game: {
-			name: `${title}`,
+			name: `${content}`,
 			type: 'PLAYING',
 		},
 	});
@@ -314,7 +316,7 @@ export function previousSong(message: Message) {
 
 	message.channel.send(`⬅️ ️Switching to previous song`)
 		.catch(err => {
-			console.log(err.toString())
+			console.warn(err.toString())
 		});
 }
 export function replaySong(message: Message) {
@@ -324,19 +326,17 @@ export function replaySong(message: Message) {
 	streamDispatcher.end();
 	message.channel.send(`🔄 Replaying`)
 		.catch(err => {
-			console.log(err.toString())
+			console.warn(err.toString())
 		});
 }
 
 export function executeForcePlayUrl(message: Message, url: string) {
+	if (!streamDispatcher) return;
 	forcePlayUrl = url;
+	streamDispatcher.end();
 	message.channel.send(`Initiating force replay.`)
 		.catch(err => {
 			console.error(err.toString())
 		});
 
-	setTimeout(() => {
-		if (!streamDispatcher) return;
-		streamDispatcher.end();
-	}, 10);
 }

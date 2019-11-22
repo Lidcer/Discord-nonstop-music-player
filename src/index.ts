@@ -95,7 +95,7 @@ process.on('uncaughtException', async err => {
 process.on('unhandledRejection', err => {
 	client.emit('error', err);
 	setTimeout(() => {
-		process.exit();
+		process.exit(1);
 	}, 10000);
 });
 
@@ -137,7 +137,10 @@ function sendErrorToOwner(message: string): Promise<void> {
 }
 
 function login() {
-	client.login(discordToken).catch(error => {
-		throw error
-	});
+	try {
+		client.login(discordToken)
+	} catch (error) {
+		throw new Error(error)
+	}
+
 }
