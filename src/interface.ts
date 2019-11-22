@@ -1,3 +1,5 @@
+import ytdl = require("ytdl-core");
+
 export interface ConfigFile {
 	DISCORD_TOKEN: string;
 	YOUTUBE_API_KEY: string;
@@ -11,4 +13,8 @@ export interface ConfigFile {
 
 export interface Settings {
 	[key: string]: string;
+}
+
+export interface ytdlCache {
+	[key: string]: ytdl.videoInfo;
 }

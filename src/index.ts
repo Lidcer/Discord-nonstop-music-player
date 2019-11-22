@@ -117,7 +117,7 @@ loadTracks()
 		throw error;
 	});
 
-function sendErrorToOwner(message: string): Promise<void> {
+export function sendErrorToOwner(message: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const user = client.users.find(u => u.id === owner)
 		if (!user) {

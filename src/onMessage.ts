@@ -1,4 +1,4 @@
-import { Message, GuildChannel, MessageAttachment, Attachment, } from 'discord.js';
+import { Message, GuildChannel, Attachment, } from 'discord.js';
 import { settings, owner, tracks, destroy, invite, config } from '.';
 import { writeSettings, writeTracks, writeConfig, songsTXT } from './fileWriteReader';
 import { startMusicPlayer, infoSong, nextSong, replaySong, previousSong, executeForcePlayUrl } from './player';
