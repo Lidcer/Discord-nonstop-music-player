@@ -1,7 +1,6 @@
 import { Client, VoiceChannel, StreamDispatcher, Message, TextChannel, RichEmbed } from "discord.js";
 import { settings, tracks, youtubeKey, sendErrorToOwner } from ".";
 import { writeSettings } from "./fileWriteReader";
-import * as jsdom from 'jsdom';
 import { Youtube, VideoData } from './Youtube';
 import { getStream } from './yt-code-discord';
 import { getInfo } from "ytdl-core";
