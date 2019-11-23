@@ -22,45 +22,31 @@ function nextBestFormat(formats) {
 	return formats.find(format => !format.bitrate) || formats[0];
 }
 
-export function ytdlCustom(url): Promise<ytdlCustomParameters> {
+export function getYInfo(url): Promise<ytdl.videoInfo> {
 	return new Promise((resolve, reject) => {
-		const urlInfo = cache[url];
-
-		if (urlInfo) {
-			resolve(resolver(urlInfo));
-			return;
-		}
-
 		ytdl.getInfo(url, (err, info) => {
 			if (err) return reject(err);
 			cache[url] = info;
-
-			resolve(resolver(info));
-
-			setTimeout(() => {
-				delete cache[url];
-			}, 10000); //clear cache
+			resolve(info);
 		});
 	});
 }
 
-function resolver(info: ytdl.videoInfo): ytdlCustomParameters {
+export function getStream(info: ytdl.videoInfo): opus.Encoder | opus.WebmDemuxer {
 	let options;
+
 	const lengthSeconds = parseInt(info.length_seconds)
 	// Prefer opus
 	const format = info.formats.find(filter);
 	const canDemux = format && lengthSeconds !== 0;
-	if (canDemux) options = { ...options, filter };
-	else if (lengthSeconds !== 0) options = { filter: 'audioonly' };
+	if (canDemux) options = { ...options, filter, highWaterMark: 1 << 25 };
+	else if (lengthSeconds !== 0) options = { filter: 'audioonly', };
 	if (canDemux) {
 		const demuxer = new opus.WebmDemuxer();
 		const webmDemuxer = ytdl.downloadFromInfo(info, options)
 			.pipe(demuxer)
 			.on('end', () => demuxer.destroy())
-		return ({
-			title: info.title,
-			stream: webmDemuxer
-		});
+		return webmDemuxer;
 	} else {
 		const transcoder = new FFmpeg({
 			args: [
@@ -81,10 +67,7 @@ function resolver(info: ytdl.videoInfo): ytdlCustomParameters {
 			transcoder.destroy();
 			opusEncoder.destroy();
 		});
-		return ({
-			title: info.title,
-			stream: stream
-		});
+		return stream;
 	}
 
 }

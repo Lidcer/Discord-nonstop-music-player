@@ -3,21 +3,22 @@ import { settings, tracks, youtubeKey, sendErrorToOwner } from ".";
 import { writeSettings } from "./fileWriteReader";
 import * as jsdom from 'jsdom';
 import { Youtube, VideoData } from './Youtube';
-import { ytdlCustom } from './yt-code-discord';
-const { JSDOM } = jsdom;
+import { getStream } from './yt-code-discord';
+import { getInfo } from "ytdl-core";
+import ytdl = require("ytdl-core");
 
-let streamDispatcher: StreamDispatcher;
+
 let indexPlaying = 0;
 let trackStart: Date;
+let trackInfo: ytdl.videoInfo;
 let playing = false;
 let forcePlayUrl = '';
-// // this should fix song ending 10 second before end
-//const streamPatch = { filter: 'audioonly' };
-// const streamPatch= {
-// 	filter: 'audioonly',
-// 	//	highWaterMark: 1 << 25
-// };
+let currentUrl = '';
+let currentVideoData: VideoData;
+
 export async function onStartup(client: Client) {
+	setPresence(client, `Initializing player`)
+	getNextTrackInfo();
 	const guilds = client.guilds.map(g => g);
 
 	const settingsKeys = Object.keys(settings);
@@ -29,14 +30,12 @@ export async function onStartup(client: Client) {
 			if (settings[guildID]) {
 				delete settings[guildID];
 				console.log(`Guild ${guildID} has been removed from settings because bot is no longer in this guild`);
-
 			}
 		}
 	}
 	await leaveAllVoiceChannels(client);
 	await joinVoiceChannels(client, true);
 	writeSettings(settings).catch(err => { })
-
 	startMusicPlayer(client)
 }
 
@@ -88,75 +87,83 @@ export function startMusicPlayer(client: Client) {
 	}
 }
 
-
 export function shuffleTracks() {
 	if (tracks.length <= 1) return;
 	tracks.sort(() => Math.round(Math.random()) - 0.5);
 }
 
 
-async function play(client: Client, index = 0) {
+async function getNextTrackInfo(index = 0, client?: Client) {
 	const url = forcePlayUrl ? forcePlayUrl : tracks[indexPlaying];
 	const isForcePlayed = !!forcePlayUrl;
 	forcePlayUrl = '';
+	trackInfo = undefined;
 	try {
-		const things = await ytdlCustom(url)
-		await joinVoiceChannels(client)
-		let dispatcher: StreamDispatcher;
-		streamDispatcher = undefined;
-		if (client.voiceConnections.map(m => m).length === 0) {
-			console.warn('voiceConnections not found playing suspended!');
-			playing = false;
-			return
-		}
-		for (const voiceConnection of client.voiceConnections) {
-			if (!dispatcher) {
-				const voiceDispatcher = voiceConnection[1].playOpusStream(things.stream)
-				streamDispatcher = voiceDispatcher;
-				dispatcher = voiceDispatcher;
-			} else {
-				const anotherThing = await ytdlCustom(tracks[indexPlaying])
-				voiceConnection[1].playOpusStream(anotherThing.stream);
-
-			}
-		}
-		dispatcher.on('end', () => {
-			const WAIT = 1000 * 2; // waits 2 seconds
-			setTimeout(() => {
-				playlistIncrementor();
-				play(client);
-			}, WAIT);
-		});
-		dispatcher.on('start', () => {
-			console.info(`Track ${indexPlaying + 1} / ${tracks.length} ${tracks[indexPlaying]}`);
-			trackStart = new Date(Date.now());
-			setPresence(client, things.title);
-		});
-
-		dispatcher.on('error', err => {
-			throw err;
-		});
+		trackInfo = await getInfo(url)
+		if (client) forceEndTrackInAllPlayers(client);
 	} catch (error) {
 		if (isForcePlayed) {
 			sendErrorToOwner('Force play failed!');
+			return;
 		}
 
 		if (index > 10) {
-			console.warn('Unable to play tracks!');
-			setPresence(client, 'Technical issues')
+			console.error('Unable to play tracks!');
 			shuffleTracks();
 			indexPlaying = 0;
 			setTimeout(() => {
-				play(client, ++index);
+				getNextTrackInfo(++index);
 			}, 60000);
 			return;
 		}
 		playlistIncrementor();
-		console.error(`Broken track ${url}`)
+		console.warn(`Broken track ${url}`);
 		setTimeout(() => {
-			play(client, ++index)
+			getNextTrackInfo(++index);
 		}, 5000);
 	}
+}
+
+
+async function play(client: Client) {
+	if (!trackInfo) {
+		setPresence(client, 'Technical issues!');
+		setTimeout(() => {
+			play(client);
+		}, 15000);
+		return;
+	}
+
+	await joinVoiceChannels(client);
+	let streamDispatcher = undefined;
+	currentUrl = trackInfo.video_url;
+	currentVideoData = undefined;
+	const title = trackInfo.title;
+	if (client.voiceConnections.map(m => m).length === 0) {
+		console.warn('voiceConnections not found playing suspended!');
+		playing = false;
+		return;
+	}
+	for (const voiceConnection of client.voiceConnections) {
+		const dispatcher = voiceConnection[1].playOpusStream(getStream(trackInfo));
+		if (!streamDispatcher) streamDispatcher = dispatcher;
+	}
+	getNextTrackInfo();
+	streamDispatcher.on('end', () => {
+		const WAIT = 1000 * 2; // waits 2 seconds
+		setTimeout(() => {
+			playlistIncrementor();
+			play(client);
+		}, WAIT);
+	});
+	streamDispatcher.on('start', () => {
+		console.info(`Track ${indexPlaying + 1} / ${tracks.length} ${tracks[indexPlaying]} ${title}`);
+		trackStart = new Date(Date.now());
+		setPresence(client, title);
+	});
+	streamDispatcher.on('error', err => {
+		throw err;
+	});
 }
 
 function playlistIncrementor() {
@@ -177,35 +184,43 @@ function setPresence(client: Client, content: string) {
 }
 
 export async function infoSong(message: Message) {
-	await message.channel.startTyping();
 	if (youtubeKey && canEmbed(message.channel as TextChannel)) {
-		await Youtube.getVideoInfo(youtubeKey, tracks[indexPlaying])
-			.then((video: VideoData) => {
-				message.channel.send(songInfoEmbed(new RichEmbed(), video))
-					.catch(err => {
-						console.log(err.toString())
-					});
-			})
-			.catch(error => {
-				console.error(error);
-				message.channel.send('Unable to get information')
-					.catch(err => {
-						console.log(err.toString())
-					});
-			});
-	} else message.channel.send(tracks[indexPlaying])
-		.catch(err => {
-			console.log(err.toString())
-		});
+		if (!currentVideoData) {
+			try {
+				await message.channel.startTyping();
+				currentVideoData = await Youtube.getVideoInfo(youtubeKey, currentUrl)
+			} catch (_) { /* Ignore */ }
+			finally {
+				message.channel.stopTyping();
+			}
+		}
 
-	message.channel.stopTyping();
+		if (!currentVideoData) {
+			message.channel.send(songInfoEmbed(currentVideoData))
+				.catch(err => {
+					console.warn(err.toString())
+				});
+		} else {
+			message.channel.send(songInfoEmbed(currentVideoData))
+				.catch(err => {
+					console.warn(err.toString())
+				});
+		}
+
+	} else {
+		message.channel.send(`**${currentUrl}**`)
+			.catch(err => {
+				console.warn(err.toString())
+			});
+	}
 }
 
 function canEmbed(channel: TextChannel) {
 	return channel.permissionsFor(channel.guild.me).has('EMBED_LINKS');
 }
 
-function songInfoEmbed(embed: RichEmbed, video: VideoData) {
+function songInfoEmbed(video: VideoData) {
+	const embed = new RichEmbed();
 	const language = {
 		video: {
 			comments: 'Comments',
@@ -215,7 +230,7 @@ function songInfoEmbed(embed: RichEmbed, video: VideoData) {
 			playlistStatus: 'Playlist status',
 			progress: 'Progress',
 			published: 'Published',
-			rateing: 'Raiting',
+			rating: 'Rating',
 			upvote: '👍',
 			views: 'Views',
 		},
@@ -266,7 +281,7 @@ function songInfoEmbed(embed: RichEmbed, video: VideoData) {
 
 	embed.addField(language.video.views, views, true);
 	embed.addField(
-		language.video.rateing,
+		language.video.rating,
 		`${language.video.upvote}${likes}  ${language.video.downvote}${disLike}`,
 		true,
 	);
@@ -300,19 +315,17 @@ function getYoutubeTime(date: Date) {
 
 
 export function nextSong(message: Message) {
-	if (!streamDispatcher) return;
-	streamDispatcher.end();
+	forceEndTrackInAllPlayers(message.client);
 	message.channel.send(`➡️ ️Switching to next song.`)
 		.catch(err => {
-			console.log(err.toString())
+			console.warn(err.toString())
 		});
 }
 
 export function previousSong(message: Message) {
-	if (!streamDispatcher) return;
-	indexPlaying -= 3;
+	indexPlaying -= 2;
 	if (indexPlaying < 0) indexPlaying = 0;
-	streamDispatcher.end();
+	getNextTrackInfo(0, message.client)
 
 	message.channel.send(`⬅️ ️Switching to previous song`)
 		.catch(err => {
@@ -320,10 +333,9 @@ export function previousSong(message: Message) {
 		});
 }
 export function replaySong(message: Message) {
-	if (!streamDispatcher) return;
 	indexPlaying--;
 	if (indexPlaying === -1) indexPlaying = tracks.length;
-	streamDispatcher.end();
+	getNextTrackInfo(0, message.client)
 	message.channel.send(`🔄 Replaying`)
 		.catch(err => {
 			console.warn(err.toString())
@@ -331,12 +343,16 @@ export function replaySong(message: Message) {
 }
 
 export function executeForcePlayUrl(message: Message, url: string) {
-	if (!streamDispatcher) return;
 	forcePlayUrl = url;
-	streamDispatcher.end();
+	getNextTrackInfo(0, message.client)
 	message.channel.send(`Initiating force replay.`)
 		.catch(err => {
 			console.error(err.toString())
 		});
+}
 
+function forceEndTrackInAllPlayers(client: Client) {
+	for (const voiceConnection of client.voiceConnections) {
+		voiceConnection[1].dispatcher.end();
+	}
 }

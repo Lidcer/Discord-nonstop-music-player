@@ -7,8 +7,6 @@ export const songsTXT = path.join(__dirname, '../songs.txt');
 const settingsJson = path.join(__dirname, '../settings.json');
 const configJson = path.join(__dirname, '../config.json');
 
-
-//const beautify = require('beautify');
 export function loadTracks(): Promise<string[]> {
 	return new Promise((resolve, reject) => {
 		readFile(songsTXT, 'utf8', (err, data) => {
@@ -22,6 +20,7 @@ export function loadTracks(): Promise<string[]> {
 					return array.indexOf(line) == index;
 				})
 
+			urls.sort(() => Math.round(Math.random()) - 0.5);
 			console.info(`Loaded ${urls.length} tracks`);
 			resolve(urls);
 			return;

@@ -89,7 +89,9 @@ process.on('SIGTERM', () => destroy());
 
 process.on('uncaughtException', async err => {
 	console.error(err.stack);
-	await sendErrorToOwner(err.stack).catch(err => { console.warn(err.toString()) });
+	if (config.LOG_LEVEL > 2) {
+		await sendErrorToOwner(err.stack).catch(err => { console.warn(err.toString()) });
+	}
 	destroy();
 });
 process.on('unhandledRejection', err => {
@@ -142,5 +144,4 @@ function login() {
 	} catch (error) {
 		throw new Error(error)
 	}
-
 }

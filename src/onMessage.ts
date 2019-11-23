@@ -7,9 +7,7 @@ import { readFile } from 'fs';
 export const youtubeRegExp = new RegExp(/http(?:s?):\/\/(?:www\.)?youtu(?:be\.com\/watch\?v=|\.be\/)([\w\-\_]*)(&(amp;)?‌​[\w\?‌​=]*)?/g);
 
 const cooldown = new Set();
-const nowPlaying = new Set();
 const COOLDOWN_TIME = 5000;
-const NOW_WAIT = 1000 * 30;
 
 //all stings in this object needs to be lowercase
 export const commands = {
@@ -44,7 +42,8 @@ export async function onMessage(message: Message, prefix: string) {
 		const guildChannel = message.channel as GuildChannel;
 		if (!guildChannel.permissionsFor(message.guild.me).has('SEND_MESSAGES')) return;
 	}
-	if (message.content === message.client.user.toString()) {
+
+	if (message.content === `<@${message.client.user.id}>` || message.content === `<@!${message.client.user.id}>`) {
 		message.channel.send(`My prefix is ${config.PREFIX}`);
 		return;
 	}
@@ -53,12 +52,6 @@ export async function onMessage(message: Message, prefix: string) {
 	let content = message.content.toLowerCase().replace(/  /g, '').trim();
 	if (!content.startsWith(prefix)) return;
 	content = content.slice(prefix.length);
-
-	cooldown.add(message.author.id);
-
-	setTimeout(() => {
-		cooldown.delete(message.author.id);
-	}, COOLDOWN_TIME);
 
 
 	if (content.startsWith('help')) {
@@ -92,7 +85,9 @@ export async function onMessage(message: Message, prefix: string) {
 			commandsInfo.push(`${prefix}${commands.owner.uploadSongsTxt} - replaces songs.txt (requires songs.txt attachment)`);
 			commandsInfo.push(`${prefix}${commands.owner.downloadSongsTxt} - sends you songs.txt file`);
 		}
-		message.channel.send(`${startEnd}\n${commandsInfo.join('\n')}${startEnd}`).catch(() => {/* ignored */ });
+		message.channel.send(`${startEnd}\n${commandsInfo.join('\n')}${startEnd}`)
+			.then(() => addUserToCoolDown(message.author.id))
+			.catch(() => {/* ignored */ });
 	}
 
 
@@ -241,7 +236,9 @@ export async function onMessage(message: Message, prefix: string) {
 	if (content.startsWith(commands.admins.addVoiceChannel)) {
 		if (message.author.id !== owner) {
 			if (!message.member.hasPermission('MANAGE_CHANNELS')) {
-				message.reply('Sorry but you need `MANAGE_CHANNELS` permission to use that commend').catch(() => { });
+				message.reply('Sorry but you need `MANAGE_CHANNELS` permission to use that commend')
+					.then(() => addUserToCoolDown(message.author.id))
+					.catch(() => { });
 				return;
 			}
 		}
@@ -249,11 +246,15 @@ export async function onMessage(message: Message, prefix: string) {
 		if (message.member.voiceChannel) {
 			const voiceChannel = message.member.voiceChannel;
 			if (!voiceChannel.joinable) {
-				message.reply("Sorry but I'm unable to join this voice channel 😥").catch(() => { });
+				message.reply("Sorry but I'm unable to join this voice channel 😥")
+					.then(() => addUserToCoolDown(message.author.id))
+					.catch(() => { });
 				return;
 			}
 			if (settings[message.guild.id] === voiceChannel.id) {
-				message.channel.send("🤔 Hold on. I'm already configured for this channel.").catch(() => { });
+				message.channel.send("🤔 Hold on. I'm already configured for this channel.")
+					.then(() => addUserToCoolDown(message.author.id))
+					.catch(() => { });
 				return;
 			}
 			const switchingChannel = !!settings[message.guild.id];
@@ -262,21 +263,29 @@ export async function onMessage(message: Message, prefix: string) {
 			await writeSettings(settings).catch(() => { });
 
 			if (switchingChannel)
-				message.channel.send("Voice Channel has been successfully changed. I'm going to join when current song ends.").catch(() => { });
+				message.channel.send("Voice Channel has been successfully changed. I'm going to join when current song ends.")
+					.then(() => addUserToCoolDown(message.author.id))
+					.catch(() => { });
 			else
-				message.channel.send('🤗 Alright all set up. I will connect when its going to be possible.').catch(() => { });
+				message.channel.send('🤗 Alright all set up. I will connect when its going to be possible.')
+					.then(() => addUserToCoolDown(message.author.id))
+					.catch(() => { });
 			startMusicPlayer(message.client)
 			return;
 		}
 
-		message.channel.send('Please join voice channel then try use this command again.').catch(() => { });
+		message.channel.send('Please join voice channel then try use this command again.')
+			.then(() => addUserToCoolDown(message.author.id))
+			.catch(() => { });
 		return
 
 	}
 	if (content.startsWith(commands.admins.removeVoiceChannel)) {
 		if (message.author.id !== owner) {
 			if (!message.member.hasPermission('MANAGE_CHANNELS')) {
-				message.reply('Sorry but you need `MANAGE_CHANNELS` permission to use that commend');
+				message.reply('Sorry but you need `MANAGE_CHANNELS` permission to use that commend')
+					.then(() => addUserToCoolDown(message.author.id))
+					.catch(() => { });
 				return;
 			}
 		}
@@ -286,26 +295,24 @@ export async function onMessage(message: Message, prefix: string) {
 			if (message.guild.voiceConnection) {
 				await message.guild.voiceConnection.channel.leave();
 			}
-			message.channel.send('🤨 Alright then. No more music.').catch(() => { });
+			message.channel.send('🤨 Alright then. No more music.')
+				.then(() => addUserToCoolDown(message.author.id))
+				.catch(() => { });
 		}
 		else {
-			message.channel.send('🤔 There is nothing to remove.').catch(() => { });
+			message.channel.send('🤔 There is nothing to remove.')
+				.then(() => addUserToCoolDown(message.author.id))
+				.catch(() => { });
 		}
 	}
 
 	if (content.startsWith(commands.users.nowPlaying)) {
-		if (nowPlaying.has(message.author.id)) {
-			message.channel.send(`Please wait ${NOW_WAIT / 1000}s before using this command again`).catch(() => { });
-			return;
-		}
-		nowPlaying.add(message.author.id)
-		setTimeout(() => {
-			nowPlaying.delete(message.author.id)
-		}, NOW_WAIT);
 		infoSong(message);
 	}
 	if (config.INVITE && content.startsWith('invite')) {
-		message.channel.send(`Sure... here is my invite code for ya **<${invite}>**`).catch(() => { });
+		message.channel.send(`Sure... here is my invite code for ya **<${invite}>**`)
+			.then(() => addUserToCoolDown(message.author.id))
+			.catch(() => { });
 	}
 }
 
@@ -317,7 +324,9 @@ async function updateFile(message: Message, url: string) {
 
 			const lines = data.match(youtubeRegExp) as RegExpMatchArray;
 			if (!lines || lines.length === 0) {
-				message.channel.send(`Unable to find songs. operation canceled`);
+				message.channel.send(`Unable to find songs. operation canceled`)
+					.then(() => addUserToCoolDown(message.author.id))
+					.catch(() => { });
 				return
 			}
 
@@ -328,9 +337,21 @@ async function updateFile(message: Message, url: string) {
 			await writeTracks(tracks)
 
 			message.channel.send(`Playlist updated. Total tracks ${tracks.length}`)
+				.then(() => addUserToCoolDown(message.author.id))
+				.catch(() => { });
 		})
 		.catch(err => {
 			console.error(err);
 			message.channel.send(`Something went wrongs: ${err}`)
+				.then(() => addUserToCoolDown(message.author.id))
+				.catch(() => { });
 		});
+}
+
+function addUserToCoolDown(id: string) {
+	if (id === config.OWNER) return; // Ignored for owner
+	cooldown.add(id);
+	setTimeout(() => {
+		cooldown.delete(id);
+	}, COOLDOWN_TIME);
 }
