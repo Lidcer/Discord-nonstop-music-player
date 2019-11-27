@@ -6,7 +6,6 @@ interface ytdlCustomParameters {
 	title: string,
 	stream: opus.Encoder | opus.WebmDemuxer;
 }
-const cache: ytdlCache = {};
 
 
 function filter(format) {
@@ -26,7 +25,6 @@ export function getYInfo(url): Promise<ytdl.videoInfo> {
 	return new Promise((resolve, reject) => {
 		ytdl.getInfo(url, (err, info) => {
 			if (err) return reject(err);
-			cache[url] = info;
 			resolve(info);
 		});
 	});

@@ -98,16 +98,18 @@ async function getNextTrackInfo(index = 0, client?: Client) {
 	forcePlayUrl = '';
 	trackInfo = undefined;
 	try {
+		console.log(`Fetching info about ${url}`);
 		trackInfo = await getInfo(url)
+		console.log(`Info fetched about ${url} ${trackInfo.title}`);
 		if (client) forceEndTrackInAllPlayers(client);
 	} catch (error) {
+		console.error('Unable to play tracks!');
 		if (isForcePlayed) {
 			sendErrorToOwner('Force play failed!');
 			return;
 		}
 
 		if (index > 10) {
-			console.error('Unable to play tracks!');
 			shuffleTracks();
 			indexPlaying = 0;
 			setTimeout(() => {
