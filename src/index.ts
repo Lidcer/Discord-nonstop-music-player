@@ -112,7 +112,7 @@ loadTracks()
 		if (t.length === 0) throw new Error('No tracks found!');
 		tracks = t;
 		settings = await loadSettingsConfig()
-			.catch(err => { throw new Error(err) });
+			.catch(err => { throw new Error(err); });
 		login();
 	})
 	.catch(error => {
@@ -121,16 +121,16 @@ loadTracks()
 
 export function sendErrorToOwner(message: string): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const user = client.users.find(u => u.id === owner)
+		const user = client.users.find(u => u.id === owner);
 		if (!user) {
 			reject(new Error('User not found'));
 			return
-		};
+		}
 		user.createDM()
 			.then(channel => {
 				channel.send(message)
-					.then(() => { resolve() })
-					.catch(err => reject(err))
+					.then(() => { resolve(); })
+					.catch(err => reject(err));
 			})
 			.catch(err => {
 				reject(err);
@@ -140,8 +140,8 @@ export function sendErrorToOwner(message: string): Promise<void> {
 
 function login() {
 	try {
-		client.login(discordToken)
+		client.login(discordToken);
 	} catch (error) {
-		throw new Error(error)
+		throw new Error(error);
 	}
 }

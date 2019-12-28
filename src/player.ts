@@ -34,11 +34,11 @@ export async function onStartup(client: Client) {
 	}
 	await leaveAllVoiceChannels(client);
 	await joinVoiceChannels(client, true);
-	writeSettings(settings).catch(err => { })
-	startMusicPlayer(client)
+	writeSettings(settings).catch(err => { });
+	startMusicPlayer(client);
 }
 
-function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promise<void> {
+function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false, forceJoin = true): Promise<void> {
 	return new Promise(async (resolve, rejects) => {
 		const oldSettings = JSON.stringify(settings);
 
@@ -46,6 +46,7 @@ function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promi
 		for (const guild of guilds) {
 			const voiceChannelId = settings[guild.id];
 			const voiceChannel = guild.channels.find(c => c.id === voiceChannelId) as VoiceChannel;
+			if (!forceJoin && guild.voiceConnection) break;
 			if (!voiceChannel) {
 				if (settings[guild.id])
 					console.log(`Guild ${guild.id} has been removed from settings because voice channel doesn't exist`);
@@ -68,7 +69,7 @@ function joinVoiceChannels(client: Client, ignoreSettingsRewrite = false): Promi
 
 export function leaveAllVoiceChannels(client: Client) {
 	return new Promise(resolve => {
-		const voiceConnections = client.voiceConnections
+		const voiceConnections = client.voiceConnections;
 		for (const voiceConnection of voiceConnections) {
 			voiceConnection[1].channel.leave();
 		}
@@ -99,7 +100,7 @@ async function getNextTrackInfo(index = 0, client?: Client) {
 	trackInfo = undefined;
 	try {
 		console.log(`Fetching info about ${url}`);
-		trackInfo = await getInfo(url)
+		trackInfo = await getInfo(url);
 		console.log(`Info fetched about ${url} ${trackInfo.title}`);
 		if (client) forceEndTrackInAllPlayers(client);
 	} catch (error) {
@@ -135,7 +136,7 @@ async function play(client: Client) {
 		return;
 	}
 
-	await joinVoiceChannels(client);
+	await joinVoiceChannels(client, false, false);
 	let streamDispatcher = undefined;
 	currentUrl = trackInfo.video_url;
 	currentVideoData = undefined;
@@ -313,33 +314,31 @@ function getYoutubeTime(date: Date) {
 	return `${hours}${minutes}:${seconds}`;
 }
 
-
-
 export function nextSong(message: Message) {
 	forceEndTrackInAllPlayers(message.client);
 	message.channel.send(`➡️ ️Switching to next song.`)
 		.catch(err => {
-			console.warn(err.toString())
+			console.warn(err.toString());
 		});
 }
 
 export function previousSong(message: Message) {
 	indexPlaying -= 2;
 	if (indexPlaying < 0) indexPlaying = 0;
-	getNextTrackInfo(0, message.client)
+	getNextTrackInfo(0, message.client);
 
 	message.channel.send(`⬅️ ️Switching to previous song`)
 		.catch(err => {
-			console.warn(err.toString())
+			console.warn(err.toString());
 		});
 }
 export function replaySong(message: Message) {
 	indexPlaying--;
 	if (indexPlaying === -1) indexPlaying = tracks.length;
-	getNextTrackInfo(0, message.client)
+	getNextTrackInfo(0, message.client);
 	message.channel.send(`🔄 Replaying`)
 		.catch(err => {
-			console.warn(err.toString())
+			console.warn(err.toString());
 		});
 }
 
